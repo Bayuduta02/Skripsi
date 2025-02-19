@@ -11,4 +11,5 @@
     <color name="colorPrimaryDark">#ffffff</color>
     <color name="colorAccent">#4885ed</color>
     <color name="Tinta">#070504</color>
+    <color name="gray">#F5F5F5</color>
 </resources>
