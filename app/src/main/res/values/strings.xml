@@ -3,4 +3,6 @@
     <string name="isyaratkita">Isyarat Kita</string>
     <string name="welcome_user">Welcome,User</string>
     <string name="isyarat_kita">Isyarat Kita</string>
+    <string name="panduan_bahasa_isyarat">Panduan Bahasa Isyarat</string>
+    <string name="deskripsi_paduan">Berisikan Bahasa Isyarat Yang Kita Gunakan Di Kehidupan Sehari-hari.</string>
 </resources>

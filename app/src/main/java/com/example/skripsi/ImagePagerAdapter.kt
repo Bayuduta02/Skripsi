@@ -24,7 +24,7 @@ class ImagePagerAdapter(private val imageList: List<Int>) : RecyclerView.Adapter
 
         fun bind(imageRes: Int) {
             imageView.setImageResource(imageRes)
-            imageView.scaleType = ImageView.ScaleType.FIT_XY // Gambar tidak akan terpotong
+            imageView.scaleType = ImageView.ScaleType.CENTER_INSIDE // Gambar tidak akan terpotong
         }
     }
 }
