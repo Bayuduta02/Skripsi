@@ -1,8 +1,10 @@
 package com.example.skripsi
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
 
@@ -44,6 +46,12 @@ class HomeActivity : AppCompatActivity() {
 
         // Mulai slide otomatis
         handler.postDelayed(runnable, 3000)
+
+        val Panduan = findViewById<View>(R.id.panduan)
+        Panduan.setOnClickListener {
+            val intent = Intent(this, PanduanHomeActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     override fun onDestroy() {
