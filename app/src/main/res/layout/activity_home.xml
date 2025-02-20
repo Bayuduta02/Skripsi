@@ -74,6 +74,9 @@
         android:layout_marginTop="24dp"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
         app:cardElevation="4dp"
         app:cardCornerRadius="8dp"
         app:layout_constraintTop_toBottomOf="@id/image"
@@ -98,8 +101,8 @@
 
             <ImageView
                 android:id="@+id/hand_icon"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
                 android:layout_marginTop="2dp"
                 android:layout_marginEnd="2dp"
                 android:importantForAccessibility="no"
@@ -131,11 +134,14 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/kamera"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/gray"
-            app:itemTextColor="@color/black"
+            android:clickable="true"
+            android:focusable="true"
             app:itemIconTint="@color/black"
+            app:itemTextColor="@color/black"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:menu="@menu/buttom_nav"

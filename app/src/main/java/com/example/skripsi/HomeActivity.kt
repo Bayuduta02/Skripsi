@@ -7,6 +7,7 @@ import android.os.Looper
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class HomeActivity : AppCompatActivity() {
 
@@ -47,10 +48,23 @@ class HomeActivity : AppCompatActivity() {
         // Mulai slide otomatis
         handler.postDelayed(runnable, 3000)
 
-        val Panduan = findViewById<View>(R.id.panduan)
-        Panduan.setOnClickListener {
+        val panduan = findViewById<View>(R.id.panduan)
+        panduan.setOnClickListener {
             val intent = Intent(this, PanduanHomeActivity::class.java)
             startActivity(intent)
+        }
+
+        val bottomNavigationView: BottomNavigationView = findViewById(R.id.kamera)
+        bottomNavigationView.setOnNavigationItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.navigation_kamera -> {
+                    // Navigasi ke com.example.skripsi.KameraGestureActivity
+                    val intent = Intent(this, KameraGestureActivity::class.java)
+                    startActivity(intent)
+                    true // Mengembalikan true untuk menandakan item dipilih
+                }
+                else -> false // Mengembalikan false untuk item lainnya (jika ada)
+            }
         }
     }
 
