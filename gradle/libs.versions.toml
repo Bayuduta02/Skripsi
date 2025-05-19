@@ -1,18 +1,18 @@
 [versions]
 agp = "8.7.3"
 kotlin = "1.9.24"
-coreKtx = "1.10.1"
+coreKtx = "1.16.0"
 junit = "4.13.2"
-junitVersion = "1.1.5"
-espressoCore = "3.5.1"
-appcompat = "1.6.1"
-material = "1.10.0"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+appcompat = "1.7.0"
+material = "1.12.0"
 tensorflowLite = "2.9.0"
 tensorflowLiteSupport = "0.4.2"
 tensorflowLiteTaskVision = "0.3.1"
 viewpager2 = "1.1.0"
-cameraView = "1.4.1"
-cameraLifecycle = "1.4.1"
+cameraView = "1.4.2"
+cameraLifecycle = "1.4.2"
 
 [libraries]
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraView" }
