@@ -1,4 +1,3 @@
-import org.jetbrains.kotlin.storage.CacheResetOnProcessCanceled.enabled
 
 plugins {
     alias(libs.plugins.android.application)
@@ -12,6 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.example.skripsi"
         minSdk = 24
+        //noinspection OldTargetApi
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -43,7 +43,7 @@ android {
 }
 
 dependencies {
-    implementation ("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")
+    implementation (libs.tensorflow.lite.select.tf.ops)
     implementation (libs.tensorflow.lite)
     implementation (libs.androidx.camera.core)
     implementation (libs.androidx.camera.camera2)
