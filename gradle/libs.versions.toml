@@ -7,9 +7,11 @@ junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 appcompat = "1.7.0"
 material = "1.12.0"
-tensorflowLite = "2.9.0"
-tensorflowLiteSupport = "0.4.2"
-tensorflowLiteTaskVision = "0.3.1"
+tensorflowLite = "2.17.0"
+tensorflowLiteGpu = "2.16.1"
+tensorflowLiteRuntime = "2.11.0"
+tensorflowLiteSelectTfOps = "2.15.0"
+tensorflowLiteSupport = "0.5.0"
 viewpager2 = "1.1.0"
 cameraView = "1.4.2"
 cameraLifecycle = "1.4.2"
@@ -27,10 +29,11 @@ material = { group = "com.google.android.material", name = "material", version.r
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version.ref = "tensorflowLite" }
-tensorflow-lite-gpu = { module = "org.tensorflow:tensorflow-lite-gpu", version.ref = "tensorflowLite" }
-tensorflow-lite-select-tf-ops = { module = "org.tensorflow:tensorflow-lite-select-tf-ops", version.ref = "tensorflowLite" }
+tensorflow-lite-gpu = { module = "org.tensorflow:tensorflow-lite-gpu", version.ref = "tensorflowLiteGpu" }
+tensorflow-lite-runtime = { module = "org.tensorflow:tensorflow-lite-runtime", version.ref = "tensorflowLiteRuntime" }
+tensorflow-lite-select-tf-ops = { module = "org.tensorflow:tensorflow-lite-select-tf-ops", version.ref = "tensorflowLiteSelectTfOps" }
 tensorflow-lite-support = { module = "org.tensorflow:tensorflow-lite-support", version.ref = "tensorflowLiteSupport" }
-tensorflow-lite-task-vision = { module = "org.tensorflow:tensorflow-lite-task-vision", version.ref = "tensorflowLiteTaskVision" }
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

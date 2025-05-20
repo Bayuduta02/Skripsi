@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.skripsi"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.skripsi"
@@ -43,20 +43,17 @@ android {
 }
 
 dependencies {
-    implementation(libs.tensorflow.lite) // Core TensorFlow Lite runtime library
-    implementation(libs.tensorflow.lite.gpu) // Optional, for GPU acceleration
-    implementation(libs.tensorflow.lite.support) // Optional, for pre/post-processing data
-    implementation(libs.tensorflow.lite.task.vision) // Optional, for vision-related tasks
-    implementation(libs.tensorflow.lite.select.tf.ops) // Optional, to allow selective TensorFlow operators.
+    implementation ("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")
+    implementation (libs.tensorflow.lite)
     implementation (libs.androidx.camera.core)
-    implementation(libs.androidx.camera.camera2)
+    implementation (libs.androidx.camera.camera2)
     implementation (libs.androidx.viewpager2)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-    implementation(libs.androidx.camera.view)
-    implementation(libs.androidx.camera.lifecycle)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
+    implementation (libs.androidx.core.ktx)
+    implementation (libs.androidx.appcompat)
+    implementation (libs.material)
+    implementation (libs.androidx.camera.view)
+    implementation (libs.androidx.camera.lifecycle)
+    testImplementation (libs.junit)
+    androidTestImplementation (libs.androidx.junit)
+    androidTestImplementation (libs.androidx.espresso.core)
 }
