@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -10,23 +11,24 @@
     <!-- Camera Preview dengan constraint yang lebih eksplisit -->
     <androidx.camera.view.PreviewView
         android:id="@+id/camera_preview"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent"
+        app:scaleType="fillCenter" />
 
     <!-- Overlay View dengan constraint yang sama persis dengan camera preview -->
     <com.example.skripsi.OverlayView
         android:id="@+id/overlay_view"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:background="@android:color/transparent"
-        app:layout_constraintTop_toTopOf="@id/camera_preview"
-        app:layout_constraintBottom_toBottomOf="@id/camera_preview"
-        app:layout_constraintStart_toStartOf="@id/camera_preview"
-        app:layout_constraintEnd_toEndOf="@id/camera_preview" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Switch Camera Button -->
     <ImageButton
@@ -51,7 +53,7 @@
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="32dp"
         android:background="@drawable/gesture_text_background"
-        android:text="@string/tunjukkan_gesture_tangan_anda"
+        android:text="@string/detecting_gesture"
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="@android:color/white"

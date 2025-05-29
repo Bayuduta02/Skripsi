@@ -14,5 +14,4 @@
     <string name="camera_permission_required">Camera permission is required for gesture recognition</string>
     <string name="model_load_error">Failed to initialize camera and AI model</string>
     <string name="camera_init_failed">Failed to initialize camera</string>
-    <string name="tunjukkan_gesture_tangan_anda">Tunjukkan gesture tangan Anda</string>
 </resources>
