@@ -44,7 +44,9 @@ android {
 
 dependencies {
     implementation (libs.tensorflow.lite.select.tf.ops)
-    implementation (libs.tensorflow.lite)
+    implementation (libs.litert)
+    implementation (libs.litert.support)
+    implementation (libs.litert.gpu)
     implementation (libs.androidx.camera.core)
     implementation (libs.androidx.camera.camera2)
     implementation (libs.androidx.viewpager2)
