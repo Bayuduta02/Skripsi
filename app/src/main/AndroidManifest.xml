@@ -56,7 +56,11 @@
         <activity
             android:name=".KameraGestureActivity"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat.NoActionBar" />
+            android:screenOrientation="portrait"
+            android:theme="@style/FullScreenTheme"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:windowSoftInputMode="stateHidden|adjustResize"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
     </application>
 

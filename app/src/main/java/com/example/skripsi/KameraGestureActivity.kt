@@ -8,22 +8,30 @@ import android.os.Bundle
 import android.util.Log
 import android.util.Size
 import android.view.View
+import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
+import androidx.camera.core.AspectRatio
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import org.tensorflow.lite.Interpreter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import kotlin.math.min
 
 @Suppress("DEPRECATION")
 class KameraGestureActivity : AppCompatActivity() {
@@ -39,10 +47,37 @@ class KameraGestureActivity : AppCompatActivity() {
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var cameraProvider: ProcessCameraProvider? = null
 
+    // Variables untuk tracking transformasi
+    private var imageWidth = 0
+    private var imageHeight = 0
+    private var previewWidth = 0
+    private var previewHeight = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.kamera_gesture)
 
+        // Set full screen dengan cara yang lebih modern
+        setupFullScreen()
+
+        initViews()
+        setupCamera()
+    }
+
+    private fun setupFullScreen() {
+        // Hide system UI untuk full screen
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.let { controller ->
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        // Keep screen on
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Alternative method jika method di atas tidak bekerja
         window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_FULLSCREEN or
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -51,18 +86,16 @@ class KameraGestureActivity : AppCompatActivity() {
                         View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                         View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 )
-
-        initViews()
-        setupCamera()
     }
 
     private fun initViews() {
         previewView = findViewById(R.id.camera_preview)
         gestureText = findViewById(R.id.gesture_text)
         switchCameraButton = findViewById(R.id.btn_switch_camera)
-        overlayView = findViewById(R.id.overlay_view)
+        overlayView = findViewById(R.id.overlay)
 
-        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
+        // Optimasi PreviewView
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER // Ubah ke FILL_CENTER
         previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
 
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -122,7 +155,7 @@ class KameraGestureActivity : AppCompatActivity() {
                 val rotation = previewView.display?.rotation ?: 0
 
                 val preview = Preview.Builder()
-                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3) // Ubah ke 4:3 untuk kompatibilitas lebih baik
                     .setTargetRotation(rotation)
                     .build()
                     .also {
@@ -160,21 +193,32 @@ class KameraGestureActivity : AppCompatActivity() {
 
     @OptIn(ExperimentalGetImage::class)
     private fun processImage(imageProxy: ImageProxy) {
+        var bitmap: Bitmap? = null
         try {
-            val bitmap = imageProxy.toBitmap()
+            bitmap = imageProxy.toBitmap()
             if (bitmap != null) {
+                // Simpan dimensi untuk transformasi
+                imageWidth = bitmap.width
+                imageHeight = bitmap.height
+
                 val (label, bbox, confidence) = analyzeImage(bitmap)
 
                 runOnUiThread {
+                    // Update dimensi preview saat ini
+                    previewWidth = previewView.width
+                    previewHeight = previewView.height
+
                     if (confidence > 0.5f && !label.contains("tidak dikenali")) {
                         gestureText.text = label
-                        val transformedBBox = transformBoundingBoxToView(bbox, bitmap)
+
+                        // Transformasi bounding box yang lebih akurat
+                        val transformedBBox = transformBoundingBoxToView(bbox)
 
                         val clampedBBox = RectF(
                             transformedBBox.left.coerceAtLeast(0f),
                             transformedBBox.top.coerceAtLeast(0f),
-                            transformedBBox.right.coerceAtMost(previewView.width.toFloat()),
-                            transformedBBox.bottom.coerceAtMost(previewView.height.toFloat())
+                            transformedBBox.right.coerceAtMost(previewWidth.toFloat()),
+                            transformedBBox.bottom.coerceAtMost(previewHeight.toFloat())
                         )
 
                         if (clampedBBox.width() > 20f && clampedBBox.height() > 20f) {
@@ -187,12 +231,16 @@ class KameraGestureActivity : AppCompatActivity() {
                         overlayView.clearResults()
                     }
                 }
-
-                bitmap.recycle()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing image", e)
         } finally {
+            // Pastikan bitmap di-recycle dengan aman
+            bitmap?.let {
+                if (!it.isRecycled) {
+                    it.recycle()
+                }
+            }
             imageProxy.close()
         }
     }
@@ -211,13 +259,14 @@ class KameraGestureActivity : AppCompatActivity() {
                 height,
                 Bitmap.Config.ARGB_8888
             )
+            buffer.position(0) // Reset buffer position
             bitmap.copyPixelsFromBuffer(buffer)
 
             if (rowPadding == 0) {
                 bitmap
             } else {
                 val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-                bitmap.recycle()
+                if (!bitmap.isRecycled) bitmap.recycle()
                 croppedBitmap
             }
         } catch (e: Exception) {
@@ -246,12 +295,15 @@ class KameraGestureActivity : AppCompatActivity() {
                 "Gesture tidak dikenali"
             }
 
+            // Konversi normalized coordinates ke pixel coordinates
             val pixelBBox = FloatArray(4).apply {
-                this[0] = outputBBox[0][0] * bitmap.width
-                this[1] = outputBBox[0][1] * bitmap.height
-                this[2] = outputBBox[0][2] * bitmap.width
-                this[3] = outputBBox[0][3] * bitmap.height
+                this[0] = outputBBox[0][0] * bitmap.width  // x_min
+                this[1] = outputBBox[0][1] * bitmap.height // y_min
+                this[2] = outputBBox[0][2] * bitmap.width  // x_max
+                this[3] = outputBBox[0][3] * bitmap.height // y_max
             }
+
+            Log.d(TAG, "Detected: $label, BBox: [${pixelBBox[0]}, ${pixelBBox[1]}, ${pixelBBox[2]}, ${pixelBBox[3]}]")
 
             Triple(label, pixelBBox, confidence)
         } catch (e: Exception) {
@@ -266,6 +318,7 @@ class KameraGestureActivity : AppCompatActivity() {
         val byteBuffer = ByteBuffer.allocateDirect(4 * inputSize * inputSize * 3)
         byteBuffer.order(ByteOrder.nativeOrder())
 
+        // Normalisasi ImageNet
         val mean = floatArrayOf(123.68f, 116.78f, 103.94f)
         val std = floatArrayOf(58.393f, 57.12f, 57.375f)
 
@@ -282,30 +335,48 @@ class KameraGestureActivity : AppCompatActivity() {
             }
         }
 
-        resized.recycle()
+        if (!resized.isRecycled) resized.recycle()
         return byteBuffer
     }
 
-    private fun transformBoundingBoxToView(bbox: FloatArray, bitmap: Bitmap): RectF {
-        val viewWidth = previewView.width.toFloat()
-        val viewHeight = previewView.height.toFloat()
-        val imageWidth = bitmap.width.toFloat()
-        val imageHeight = bitmap.height.toFloat()
+    // Fungsi transformasi yang diperbaiki
+    private fun transformBoundingBoxToView(bbox: FloatArray): RectF {
+        if (previewWidth == 0 || previewHeight == 0 || imageWidth == 0 || imageHeight == 0) {
+            return RectF(0f, 0f, 0f, 0f)
+        }
 
-        val scale = min(viewWidth / imageWidth, viewHeight / imageHeight)
+        val viewWidth = previewWidth.toFloat()
+        val viewHeight = previewHeight.toFloat()
+        val imgWidth = imageWidth.toFloat()
+        val imgHeight = imageHeight.toFloat()
 
-        val scaledImageWidth = imageWidth * scale
-        val scaledImageHeight = imageHeight * scale
+        // Hitung scale factor
+        val scaleX = viewWidth / imgWidth
+        val scaleY = viewHeight / imgHeight
 
-        val dx = (viewWidth - scaledImageWidth) / 2f
-        val dy = (viewHeight - scaledImageHeight) / 2f
+        // Gunakan scale yang sesuai dengan PreviewView.ScaleType.FILL_CENTER
+        val scale = maxOf(scaleX, scaleY)
 
-        return RectF(
-            bbox[0] * scale + dx,
-            bbox[1] * scale + dy,
-            bbox[2] * scale + dx,
-            bbox[3] * scale + dy
+        // Hitung offset untuk centering
+        val scaledImageWidth = imgWidth * scale
+        val scaledImageHeight = imgHeight * scale
+        val offsetX = (viewWidth - scaledImageWidth) / 2f
+        val offsetY = (viewHeight - scaledImageHeight) / 2f
+
+        // Transform coordinates
+        val transformedBBox = RectF(
+            bbox[0] * scale + offsetX,  // left
+            bbox[1] * scale + offsetY,  // top
+            bbox[2] * scale + offsetX,  // right
+            bbox[3] * scale + offsetY   // bottom
         )
+
+        Log.d(TAG, "Transform - Image: ${imgWidth}x${imgHeight}, Preview: ${viewWidth}x${viewHeight}")
+        Log.d(TAG, "Scale: $scale, Offset: ($offsetX, $offsetY)")
+        Log.d(TAG, "Original BBox: [${bbox[0]}, ${bbox[1]}, ${bbox[2]}, ${bbox[3]}]")
+        Log.d(TAG, "Transformed BBox: $transformedBBox")
+
+        return transformedBBox
     }
 
     private fun loadModelFile(filename: String): ByteBuffer {
@@ -320,6 +391,12 @@ class KameraGestureActivity : AppCompatActivity() {
             byteBuffer.rewind()
             byteBuffer
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-apply full screen saat resume
+        setupFullScreen()
     }
 
     override fun onDestroy() {
