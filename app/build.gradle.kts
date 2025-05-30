@@ -47,7 +47,7 @@ dependencies {
     implementation (libs.litert)
     implementation (libs.litert.support)
     implementation (libs.litert.gpu)
-    implementation (libs.androidx.camera.core)
+    implementation(libs.androidx.camera.core)
     implementation (libs.androidx.camera.camera2)
     implementation (libs.androidx.viewpager2)
     implementation (libs.androidx.core.ktx)

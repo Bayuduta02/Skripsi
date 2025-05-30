@@ -14,12 +14,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.AspectRatio
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -28,6 +23,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.min
 
 @Suppress("DEPRECATION")
 class KameraGestureActivity : AppCompatActivity() {
@@ -47,7 +43,6 @@ class KameraGestureActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.kamera_gesture)
 
-        // Set fullscreen - Perbaikan untuk mendukung API level yang berbeda
         window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_FULLSCREEN or
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -67,13 +62,11 @@ class KameraGestureActivity : AppCompatActivity() {
         switchCameraButton = findViewById(R.id.btn_switch_camera)
         overlayView = findViewById(R.id.overlay_view)
 
-        // Perbaikan konfigurasi PreviewView untuk menghindari letterboxing
-        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Initialize TensorFlow Lite
         try {
             val options = Interpreter.Options().apply {
                 numThreads = 4
@@ -86,7 +79,6 @@ class KameraGestureActivity : AppCompatActivity() {
             Log.e(TAG, "Error loading model", e)
             Toast.makeText(this, "Error loading AI model", Toast.LENGTH_LONG).show()
             finish()
-            return
         }
 
         switchCameraButton.setOnClickListener {
@@ -129,7 +121,6 @@ class KameraGestureActivity : AppCompatActivity() {
 
                 val rotation = previewView.display?.rotation ?: 0
 
-                // Preview use case - Perbaikan untuk aspect ratio
                 val preview = Preview.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_16_9)
                     .setTargetRotation(rotation)
@@ -138,9 +129,8 @@ class KameraGestureActivity : AppCompatActivity() {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                // Image analysis use case - Perbaikan resolusi dan format
                 val imageAnalyzer = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(640, 480)) // Resolusi yang lebih umum
+                    .setTargetResolution(Size(640, 480))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setTargetRotation(rotation)
                     .build()
@@ -150,24 +140,16 @@ class KameraGestureActivity : AppCompatActivity() {
                         }
                     }
 
-                // Camera selector
                 val cameraSelector = CameraSelector.Builder()
                     .requireLensFacing(lensFacing)
                     .build()
 
-                try {
-                    // Bind use cases to lifecycle
-                    cameraProvider?.bindToLifecycle(
-                        this,
-                        cameraSelector,
-                        preview,
-                        imageAnalyzer
-                    )
-                    Log.d(TAG, "Camera started successfully")
-                } catch (exc: Exception) {
-                    Log.e(TAG, "Use case binding failed", exc)
-                    Toast.makeText(this, "Failed to start camera", Toast.LENGTH_SHORT).show()
-                }
+                cameraProvider?.bindToLifecycle(
+                    this,
+                    cameraSelector,
+                    preview,
+                    imageAnalyzer
+                )
 
             } catch (exc: Exception) {
                 Log.e(TAG, "Camera initialization failed", exc)
@@ -176,7 +158,7 @@ class KameraGestureActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    @ExperimentalGetImage
+    @OptIn(ExperimentalGetImage::class)
     private fun processImage(imageProxy: ImageProxy) {
         try {
             val bitmap = imageProxy.toBitmap()
@@ -184,63 +166,20 @@ class KameraGestureActivity : AppCompatActivity() {
                 val (label, bbox, confidence) = analyzeImage(bitmap)
 
                 runOnUiThread {
-                    // Debugging: Log untuk melihat nilai-nilai
-                    Log.d(TAG, "Confidence: $confidence, Label: $label")
-                    Log.d(TAG, "BBox: [${bbox.joinToString(", ")}]")
-                    Log.d(TAG, "PreviewView size: ${previewView.width}x${previewView.height}")
-                    Log.d(TAG, "Bitmap size: ${bitmap.width}x${bitmap.height}")
-
                     if (confidence > 0.5f && !label.contains("tidak dikenali")) {
                         gestureText.text = label
+                        val transformedBBox = transformBoundingBoxToView(bbox, bitmap)
 
-                        // Perbaikan perhitungan scaling yang lebih akurat
-                        val previewWidth = previewView.width.toFloat()
-                        val previewHeight = previewView.height.toFloat()
-                        val imageWidth = bitmap.width.toFloat()
-                        val imageHeight = bitmap.height.toFloat()
+                        val clampedBBox = RectF(
+                            transformedBBox.left.coerceAtLeast(0f),
+                            transformedBBox.top.coerceAtLeast(0f),
+                            transformedBBox.right.coerceAtMost(previewView.width.toFloat()),
+                            transformedBBox.bottom.coerceAtMost(previewView.height.toFloat())
+                        )
 
-                        // Pastikan ukuran preview view sudah tersedia
-                        if (previewWidth > 0 && previewHeight > 0) {
-                            // Hitung scale factor berdasarkan PreviewView scaleType FILL_CENTER
-                            val scaleX = previewWidth / imageWidth
-                            val scaleY = previewHeight / imageHeight
-                            val scale = maxOf(scaleX, scaleY)
-
-                            // Hitung offset untuk centering
-                            val scaledImageWidth = imageWidth * scale
-                            val scaledImageHeight = imageHeight * scale
-                            val offsetX = (previewWidth - scaledImageWidth) / 2f
-                            val offsetY = (previewHeight - scaledImageHeight) / 2f
-
-                            // Transform bounding box coordinates
-                            val transformedBBox = RectF(
-                                bbox[0] * scale + offsetX,
-                                bbox[1] * scale + offsetY,
-                                bbox[2] * scale + offsetX,
-                                bbox[3] * scale + offsetY
-                            )
-
-                            // Validasi dan clamp bounding box ke dalam bounds preview
-                            val clampedBBox = RectF(
-                                transformedBBox.left.coerceAtLeast(0f),
-                                transformedBBox.top.coerceAtLeast(0f),
-                                transformedBBox.right.coerceAtMost(previewWidth),
-                                transformedBBox.bottom.coerceAtMost(previewHeight)
-                            )
-
-                            // Validasi ukuran bounding box masuk akal
-                            val boxWidth = clampedBBox.width()
-                            val boxHeight = clampedBBox.height()
-
-                            if (boxWidth > 20f && boxHeight > 20f) {
-                                Log.d(TAG, "Setting bounding box: $clampedBBox")
-                                overlayView.setResults(listOf(clampedBBox), listOf(label))
-                            } else {
-                                Log.w(TAG, "Bounding box too small: ${boxWidth}x${boxHeight}")
-                                overlayView.clearResults()
-                            }
+                        if (clampedBBox.width() > 20f && clampedBBox.height() > 20f) {
+                            overlayView.setResults(listOf(clampedBBox), listOf(label))
                         } else {
-                            Log.w(TAG, "PreviewView size not available yet")
                             overlayView.clearResults()
                         }
                     } else {
@@ -258,8 +197,7 @@ class KameraGestureActivity : AppCompatActivity() {
         }
     }
 
-    // Tambahkan extension function untuk konversi ImageProxy ke Bitmap
-    @ExperimentalGetImage
+    @OptIn(ExperimentalGetImage::class)
     private fun ImageProxy.toBitmap(): Bitmap? {
         return try {
             val image = this.image ?: return null
@@ -275,7 +213,6 @@ class KameraGestureActivity : AppCompatActivity() {
             )
             bitmap.copyPixelsFromBuffer(buffer)
 
-            // Crop jika ada padding
             if (rowPadding == 0) {
                 bitmap
             } else {
@@ -295,7 +232,6 @@ class KameraGestureActivity : AppCompatActivity() {
             val outputBBox = Array(1) { FloatArray(4) }
             val outputClass = Array(1) { FloatArray(classLabels.size) }
 
-            // Run inference
             interpreter.runForMultipleInputsOutputs(
                 arrayOf(inputBuffer),
                 mapOf(0 to outputBBox, 1 to outputClass)
@@ -310,21 +246,11 @@ class KameraGestureActivity : AppCompatActivity() {
                 "Gesture tidak dikenali"
             }
 
-            // Convert normalized bbox to pixel coordinates
             val pixelBBox = FloatArray(4).apply {
-                this[0] = outputBBox[0][0] * bitmap.width  // x1
-                this[1] = outputBBox[0][1] * bitmap.height // y1
-                this[2] = outputBBox[0][2] * bitmap.width  // x2
-                this[3] = outputBBox[0][3] * bitmap.height // y2
-            }
-
-            // Validasi bounding box
-            val boxWidth = pixelBBox[2] - pixelBBox[0]
-            val boxHeight = pixelBBox[3] - pixelBBox[1]
-
-            if (boxWidth <= 0 || boxHeight <= 0) {
-                Log.w(TAG, "Invalid bounding box dimensions")
-                return Triple("Gesture tidak dikenali", FloatArray(4), 0f)
+                this[0] = outputBBox[0][0] * bitmap.width
+                this[1] = outputBBox[0][1] * bitmap.height
+                this[2] = outputBBox[0][2] * bitmap.width
+                this[3] = outputBBox[0][3] * bitmap.height
             }
 
             Triple(label, pixelBBox, confidence)
@@ -346,10 +272,9 @@ class KameraGestureActivity : AppCompatActivity() {
         for (y in 0 until inputSize) {
             for (x in 0 until inputSize) {
                 val pixel = resized.getPixel(x, y)
-
-                val r = ((pixel shr 16) and 0xFF)
-                val g = ((pixel shr 8) and 0xFF)
-                val b = (pixel and 0xFF)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
 
                 byteBuffer.putFloat((r - mean[0]) / std[0])
                 byteBuffer.putFloat((g - mean[1]) / std[1])
@@ -361,32 +286,46 @@ class KameraGestureActivity : AppCompatActivity() {
         return byteBuffer
     }
 
+    private fun transformBoundingBoxToView(bbox: FloatArray, bitmap: Bitmap): RectF {
+        val viewWidth = previewView.width.toFloat()
+        val viewHeight = previewView.height.toFloat()
+        val imageWidth = bitmap.width.toFloat()
+        val imageHeight = bitmap.height.toFloat()
+
+        val scale = min(viewWidth / imageWidth, viewHeight / imageHeight)
+
+        val scaledImageWidth = imageWidth * scale
+        val scaledImageHeight = imageHeight * scale
+
+        val dx = (viewWidth - scaledImageWidth) / 2f
+        val dy = (viewHeight - scaledImageHeight) / 2f
+
+        return RectF(
+            bbox[0] * scale + dx,
+            bbox[1] * scale + dy,
+            bbox[2] * scale + dx,
+            bbox[3] * scale + dy
+        )
+    }
+
     private fun loadModelFile(filename: String): ByteBuffer {
-        return try {
-            assets.openFd(filename).use { fd ->
-                val inputStream = fd.createInputStream()
-                val byteBuffer = ByteBuffer.allocateDirect(fd.length.toInt())
-                val buffer = ByteArray(1024)
-
-                var bytesRead: Int
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    byteBuffer.put(buffer, 0, bytesRead)
-                }
-
-                byteBuffer.rewind() as ByteBuffer
+        return assets.openFd(filename).use { fd ->
+            val inputStream = fd.createInputStream()
+            val byteBuffer = ByteBuffer.allocateDirect(fd.length.toInt())
+            val buffer = ByteArray(1024)
+            var bytesRead: Int
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                byteBuffer.put(buffer, 0, bytesRead)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading model file", e)
-            throw e
+            byteBuffer.rewind()
+            byteBuffer
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
-        if (::interpreter.isInitialized) {
-            interpreter.close()
-        }
+        if (::interpreter.isInitialized) interpreter.close()
     }
 
     companion object {
