@@ -2,9 +2,11 @@ package com.example.skripsi
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
-import android.util.Log
 import android.view.View
 
 class OverlayView @JvmOverloads constructor(
@@ -13,97 +15,74 @@ class OverlayView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val boundingBoxes = mutableListOf<RectF>()
-    private val labels = mutableListOf<String>()
+    private var boundingBox: RectF? = null
+    private var labelText: String? = null
 
     private val boxPaint = Paint().apply {
         color = Color.GREEN
         style = Paint.Style.STROKE
-        strokeWidth = 4.0f
+        strokeWidth = 8f
         isAntiAlias = true
     }
 
-    private val labelBackgroundPaint = Paint().apply {
+    private val textPaint = Paint().apply {
         color = Color.GREEN
+        textSize = 48f
+        style = Paint.Style.FILL
+        isAntiAlias = true
+        isFakeBoldText = true
+    }
+
+    private val textBackgroundPaint = Paint().apply {
+        color = Color.argb(180, 0, 0, 0) // Semi-transparent black
         style = Paint.Style.FILL
         isAntiAlias = true
     }
 
-    private val labelTextPaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 36.0f
-        isAntiAlias = true
-        typeface = Typeface.DEFAULT_BOLD
+    fun setBoxAndLabel(box: RectF, label: String) {
+        boundingBox = box
+        labelText = label
+        invalidate() // Trigger onDraw
     }
 
-    fun setResults(boxes: List<RectF>, labelList: List<String>) {
-        boundingBoxes.clear()
-        labels.clear()
-        boundingBoxes.addAll(boxes)
-        labels.addAll(labelList)
-        Log.d(TAG, "Setting results: ${boxes.size} boxes, ${labelList.size} labels")
+    fun clearBox() {
+        boundingBox = null
+        labelText = null
         invalidate()
-    }
-
-    fun clearResults() {
-        boundingBoxes.clear()
-        labels.clear()
-        Log.d(TAG, "Clearing results")
-        invalidate()
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        Log.d(TAG, "Size changed to: ${w}x${h}")
     }
 
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        Log.d(TAG, "onDraw called, boxes count: ${boundingBoxes.size}")
 
-        boundingBoxes.forEachIndexed { index, box ->
-            if (box.left >= 0 && box.top >= 0 &&
-                box.right <= width && box.bottom <= height &&
-                box.width() > 0 && box.height() > 0) {
+        boundingBox?.let { box ->
+            // Draw bounding box
+            canvas.drawRect(box, boxPaint)
 
-                Log.d(TAG, "Drawing box $index: $box, view size: ${width}x${height}")
+            // Draw label with background
+            labelText?.let { label ->
+                val textBounds = android.graphics.Rect()
+                textPaint.getTextBounds(label, 0, label.length, textBounds)
 
-                canvas.drawRect(box, boxPaint)
+                val textWidth = textBounds.width()
+                val textHeight = textBounds.height()
 
-                if (index < labels.size) {
-                    val label = labels[index]
+                // Calculate text position (above the box)
+                val textX = box.left
+                val textY = box.top - 20f
 
-                    val textBounds = Rect()
-                    labelTextPaint.getTextBounds(label, 0, label.length, textBounds)
+                // Draw text background
+                val bgRect = RectF(
+                    textX - 10f,
+                    textY - textHeight - 10f,
+                    textX + textWidth + 10f,
+                    textY + 10f
+                )
+                canvas.drawRoundRect(bgRect, 8f, 8f, textBackgroundPaint)
 
-                    val textWidth = textBounds.width()
-                    val textHeight = textBounds.height()
-
-                    val labelLeft = box.left
-                    val labelTop = maxOf(box.top - textHeight - 16, textHeight + 8f)
-                    val labelRight = minOf(labelLeft + textWidth + 16, width.toFloat())
-                    val labelBottom = labelTop + textHeight + 16
-
-                    val backgroundRect = RectF(labelLeft, labelTop - 8, labelRight, labelBottom)
-                    canvas.drawRect(backgroundRect, labelBackgroundPaint)
-
-                    canvas.drawText(
-                        label,
-                        labelLeft + 8,
-                        labelTop + textHeight,
-                        labelTextPaint
-                    )
-                }
-
-                Log.d(TAG, "Successfully drew box $index")
-            } else {
-                Log.w(TAG, "Invalid box $index: $box, view size: ${width}x${height}")
+                // Draw text
+                canvas.drawText(label, textX, textY, textPaint)
             }
         }
-    }
-
-    companion object {
-        private const val TAG = "OverlayView"
     }
 }

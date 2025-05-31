@@ -3,410 +3,478 @@ package com.example.skripsi
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
+import android.graphics.Matrix
+import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.YuvImage
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.util.DisplayMetrics
 import android.util.Size
 import android.view.View
-import android.view.WindowManager
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import org.tensorflow.lite.Interpreter
+import java.io.ByteArrayOutputStream
+import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-@Suppress("DEPRECATION")
 class KameraGestureActivity : AppCompatActivity() {
+
     private lateinit var previewView: PreviewView
+    private lateinit var overlayView: OverlayView
     private lateinit var gestureText: TextView
     private lateinit var switchCameraButton: ImageButton
-    private lateinit var overlayView: OverlayView
+    private lateinit var closeButton: ImageButton
 
     private lateinit var cameraExecutor: ExecutorService
-    private lateinit var interpreter: Interpreter
-    private lateinit var classLabels: List<String>
+    private lateinit var tflite: Interpreter
+    private lateinit var labels: List<String>
 
-    private var lensFacing = CameraSelector.LENS_FACING_BACK
-    private var cameraProvider: ProcessCameraProvider? = null
+    private var lensFacing = CameraSelector.DEFAULT_BACK_CAMERA
+    private val inputSize = 224
+    private val threshold = 0.5f
 
-    // Variables untuk tracking transformasi
-    private var imageWidth = 0
-    private var imageHeight = 0
-    private var previewWidth = 0
-    private var previewHeight = 0
+    // Screen dimensions
+    private var screenWidth = 0
+    private var screenHeight = 0
+    private var previewWidth = 0f
+    private var previewHeight = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.kamera_gesture)
 
-        // Set full screen dengan cara yang lebih modern
-        setupFullScreen()
+        // Get screen dimensions
+        getScreenDimensions()
 
-        initViews()
-        setupCamera()
-    }
+        // Setup fullscreen immersive mode
+        setupFullscreenMode()
 
-    private fun setupFullScreen() {
-        // Hide system UI untuk full screen
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.let { controller ->
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
-
-        // Keep screen on
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        // Alternative method jika method di atas tidak bekerja
-        window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                )
-    }
-
-    private fun initViews() {
-        previewView = findViewById(R.id.camera_preview)
-        gestureText = findViewById(R.id.gesture_text)
-        switchCameraButton = findViewById(R.id.btn_switch_camera)
-        overlayView = findViewById(R.id.overlay)
-
-        // Optimasi PreviewView
-        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER // Ubah ke FILL_CENTER
-        previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        // Initialize views
+        initializeViews()
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+        // Load model and labels
         try {
-            val options = Interpreter.Options().apply {
-                numThreads = 4
-                useNNAPI = false
-            }
-            interpreter = Interpreter(loadModelFile("model.tflite"), options)
-            classLabels = assets.open("labels.txt").bufferedReader().readLines()
-            Log.d(TAG, "Model loaded successfully with ${classLabels.size} classes")
+            tflite = loadModel()
+            labels = loadLabels()
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading model", e)
-            Toast.makeText(this, "Error loading AI model", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Error loading model: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+
+        // Setup button listeners
+        setupButtonListeners()
+
+        // Request camera permission and start camera
+        requestPermissionAndStartCamera()
+    }
+
+    private fun getScreenDimensions() {
+        val displayMetrics = DisplayMetrics()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.getRealMetrics(displayMetrics)
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        }
+        screenWidth = displayMetrics.widthPixels
+        screenHeight = displayMetrics.heightPixels
+    }
+
+    private fun setupFullscreenMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    )
+        }
+    }
+
+    private fun initializeViews() {
+        previewView = findViewById(R.id.camera_preview)
+        overlayView = findViewById(R.id.overlay_view)
+        gestureText = findViewById(R.id.gesture_text)
+        switchCameraButton = findViewById(R.id.btn_switch_camera)
+        closeButton = findViewById(R.id.btn_close)
+
+        // Set preview view scale type for full screen
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+
+        // Set initial gesture text
+        gestureText.text = "Mendeteksi gesture..."
+
+        // Wait for layout to get actual preview dimensions
+        previewView.post {
+            previewWidth = previewView.width.toFloat()
+            previewHeight = previewView.height.toFloat()
+        }
+    }
+
+    private fun setupButtonListeners() {
+        switchCameraButton.setOnClickListener {
+            lensFacing = if (lensFacing == CameraSelector.DEFAULT_BACK_CAMERA) {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            } else {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            }
+            startCamera()
+        }
+
+        closeButton.setOnClickListener {
             finish()
         }
-
-        switchCameraButton.setOnClickListener {
-            lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
-                CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
-            startCamera()
-        }
     }
 
-    private fun setupCamera() {
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
-            requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
-        }
-    }
-
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            if (permissions.all { it.value }) {
+    private fun requestPermissionAndStartCamera() {
+        val permissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
                 startCamera()
             } else {
-                Toast.makeText(this, "Camera permission is required", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Izin kamera diperlukan untuk menjalankan aplikasi", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
 
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            startCamera()
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
     }
 
-    @OptIn(ExperimentalGetImage::class)
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
             try {
-                cameraProvider = cameraProviderFuture.get()
-                cameraProvider?.unbindAll()
+                val cameraProvider = cameraProviderFuture.get()
 
-                val rotation = previewView.display?.rotation ?: 0
+                // Create high resolution target
+                val targetResolution = Size(screenWidth, screenHeight)
 
-                val preview = Preview.Builder()
-                    .setTargetAspectRatio(AspectRatio.RATIO_4_3) // Ubah ke 4:3 untuk kompatibilitas lebih baik
-                    .setTargetRotation(rotation)
+                val resolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            targetResolution,
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                        )
+                    )
                     .build()
-                    .also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
+
+                // Preview use case
+                val preview = Preview.Builder()
+                    .setResolutionSelector(resolutionSelector)
+                    .build()
+                    .also { preview ->
+                        preview.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
+                // ImageAnalysis use case
                 val imageAnalyzer = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(640, 480))
+                    .setResolutionSelector(resolutionSelector)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setTargetRotation(rotation)
                     .build()
-                    .also {
-                        it.setAnalyzer(cameraExecutor) { imageProxy ->
+                    .also { analyzer ->
+                        analyzer.setAnalyzer(cameraExecutor) { imageProxy ->
                             processImage(imageProxy)
                         }
                     }
 
-                val cameraSelector = CameraSelector.Builder()
-                    .requireLensFacing(lensFacing)
-                    .build()
+                // Unbind use cases before rebinding
+                cameraProvider.unbindAll()
 
-                cameraProvider?.bindToLifecycle(
+                // Bind use cases to camera
+                cameraProvider.bindToLifecycle(
                     this,
-                    cameraSelector,
+                    lensFacing,
                     preview,
                     imageAnalyzer
                 )
 
-            } catch (exc: Exception) {
-                Log.e(TAG, "Camera initialization failed", exc)
-                Toast.makeText(this, "Camera initialization failed", Toast.LENGTH_SHORT).show()
+                runOnUiThread {
+                    val cameraText = if (lensFacing == CameraSelector.DEFAULT_FRONT_CAMERA) {
+                        "Kamera Depan"
+                    } else {
+                        "Kamera Belakang"
+                    }
+                    Toast.makeText(this, "Menggunakan $cameraText", Toast.LENGTH_SHORT).show()
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "Gagal memulai kamera: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun loadModel(): Interpreter {
+        return try {
+            val assetFileDescriptor = assets.openFd("model.tflite")
+            val inputStream = FileInputStream(assetFileDescriptor.fileDescriptor)
+            val fileChannel = inputStream.channel
+            val startOffset = assetFileDescriptor.startOffset
+            val declaredLength = assetFileDescriptor.declaredLength
+            val byteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+
+            val options = Interpreter.Options()
+            options.setNumThreads(4) // Use 4 threads for better performance
+
+            Interpreter(byteBuffer, options)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            throw RuntimeException("Error loading TensorFlow Lite model: ${e.message}", e)
+        }
+    }
+
+    private fun loadLabels(): List<String> {
+        return try {
+            assets.open("labels.txt").bufferedReader().readLines()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Return default labels if file not found
+            listOf("Unknown", "Gesture1", "Gesture2", "Gesture3")
+        }
+    }
+
     @OptIn(ExperimentalGetImage::class)
     private fun processImage(imageProxy: ImageProxy) {
-        var bitmap: Bitmap? = null
         try {
-            bitmap = imageProxy.toBitmap()
-            if (bitmap != null) {
-                // Simpan dimensi untuk transformasi
-                imageWidth = bitmap.width
-                imageHeight = bitmap.height
+            // Get image rotation
+            val rotationDegrees = imageProxy.imageInfo.rotationDegrees
 
-                val (label, bbox, confidence) = analyzeImage(bitmap)
+            // Convert ImageProxy to Bitmap
+            val bitmap = imageProxyToBitmap(imageProxy)
+            if (bitmap == null) {
+                return
+            }
+
+            // Rotate bitmap if needed
+            val rotatedBitmap = if (rotationDegrees != 0) {
+                rotateBitmap(bitmap, rotationDegrees.toFloat())
+            } else {
+                bitmap
+            }
+
+            // Resize bitmap for model input
+            val resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, inputSize, inputSize, true)
+            val inputBuffer = convertBitmapToByteBuffer(resizedBitmap)
+
+            // Prepare output arrays
+            val outputBbox = Array(1) { FloatArray(4) } // [top, left, bottom, right] normalized
+            val outputScores = Array(1) { FloatArray(labels.size.coerceAtLeast(1)) }
+
+            // Run inference
+            val outputMap = mapOf(
+                0 to outputBbox,
+                1 to outputScores
+            )
+
+            tflite.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputMap)
+
+            // Process results
+            val scores = outputScores[0]
+            val bestIdx = scores.indices.maxByOrNull { scores[it] } ?: -1
+            val bestScore = if (bestIdx >= 0) scores[bestIdx] else 0f
+
+            if (bestScore > threshold && bestIdx >= 0) {
+                val label = labels.getOrNull(bestIdx) ?: "Unknown"
+                val box = outputBbox[0]
+
+                // Calculate bounding box coordinates
+                val boundingBox = calculateBoundingBox(box, rotatedBitmap.width, rotatedBitmap.height)
 
                 runOnUiThread {
-                    // Update dimensi preview saat ini
-                    previewWidth = previewView.width
-                    previewHeight = previewView.height
-
-                    if (confidence > 0.5f && !label.contains("tidak dikenali")) {
-                        gestureText.text = label
-
-                        // Transformasi bounding box yang lebih akurat
-                        val transformedBBox = transformBoundingBoxToView(bbox)
-
-                        val clampedBBox = RectF(
-                            transformedBBox.left.coerceAtLeast(0f),
-                            transformedBBox.top.coerceAtLeast(0f),
-                            transformedBBox.right.coerceAtMost(previewWidth.toFloat()),
-                            transformedBBox.bottom.coerceAtMost(previewHeight.toFloat())
-                        )
-
-                        if (clampedBBox.width() > 20f && clampedBBox.height() > 20f) {
-                            overlayView.setResults(listOf(clampedBBox), listOf(label))
-                        } else {
-                            overlayView.clearResults()
-                        }
-                    } else {
-                        gestureText.text = "Tunjukkan gesture tangan Anda"
-                        overlayView.clearResults()
-                    }
+                    gestureText.text = "$label (${(bestScore * 100).toInt()}%)"
+                    overlayView.setBoxAndLabel(boundingBox, label)
+                }
+            } else {
+                runOnUiThread {
+                    gestureText.text = "Tidak terdeteksi gesture"
+                    overlayView.clearBox()
                 }
             }
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing image", e)
-        } finally {
-            // Pastikan bitmap di-recycle dengan aman
-            bitmap?.let {
-                if (!it.isRecycled) {
-                    it.recycle()
-                }
+            e.printStackTrace()
+            runOnUiThread {
+                gestureText.text = "Error dalam deteksi"
+                overlayView.clearBox()
             }
+        } finally {
             imageProxy.close()
         }
     }
 
+    private fun calculateBoundingBox(box: FloatArray, imageWidth: Int, imageHeight: Int): RectF {
+        // Get current preview dimensions
+        val currentPreviewWidth = previewView.width.toFloat()
+        val currentPreviewHeight = previewView.height.toFloat()
+
+        if (currentPreviewWidth <= 0 || currentPreviewHeight <= 0) {
+            return RectF(0f, 0f, 0f, 0f)
+        }
+
+        // Bounding box dari model: [top, left, bottom, right] normalized (0-1)
+        val top = box[0] * imageHeight
+        val left = box[1] * imageWidth
+        val bottom = box[2] * imageHeight
+        val right = box[3] * imageWidth
+
+        // Calculate scale factors
+        val imageAspectRatio = imageWidth.toFloat() / imageHeight.toFloat()
+        val previewAspectRatio = currentPreviewWidth / currentPreviewHeight
+
+        val scaleX: Float
+        val scaleY: Float
+        val offsetX: Float
+        val offsetY: Float
+
+        if (imageAspectRatio > previewAspectRatio) {
+            // Image is wider than preview - scale by height, center horizontally
+            scaleY = currentPreviewHeight / imageHeight
+            scaleX = scaleY
+            offsetX = (currentPreviewWidth - imageWidth * scaleX) / 2f
+            offsetY = 0f
+        } else {
+            // Image is taller than preview - scale by width, center vertically
+            scaleX = currentPreviewWidth / imageWidth
+            scaleY = scaleX
+            offsetX = 0f
+            offsetY = (currentPreviewHeight - imageHeight * scaleY) / 2f
+        }
+
+        // Apply scaling and offset
+        var rect = RectF(
+            left * scaleX + offsetX,
+            top * scaleY + offsetY,
+            right * scaleX + offsetX,
+            bottom * scaleY + offsetY
+        )
+
+        // Handle front camera mirroring
+        if (lensFacing == CameraSelector.DEFAULT_FRONT_CAMERA) {
+            val flippedLeft = currentPreviewWidth - rect.right
+            val flippedRight = currentPreviewWidth - rect.left
+            rect = RectF(flippedLeft, rect.top, flippedRight, rect.bottom)
+        }
+
+        return rect
+    }
+
+    private fun convertBitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
+        val buffer = ByteBuffer.allocateDirect(4 * inputSize * inputSize * 3)
+        buffer.order(ByteOrder.nativeOrder())
+
+        val pixels = IntArray(inputSize * inputSize)
+        bitmap.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
+
+        for (pixel in pixels) {
+            // Normalize RGB values to [0, 1]
+            buffer.putFloat(((pixel shr 16) and 0xFF) / 255.0f) // Red
+            buffer.putFloat(((pixel shr 8) and 0xFF) / 255.0f)  // Green
+            buffer.putFloat((pixel and 0xFF) / 255.0f)          // Blue
+        }
+
+        return buffer
+    }
+
     @OptIn(ExperimentalGetImage::class)
-    private fun ImageProxy.toBitmap(): Bitmap? {
+    private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap? {
         return try {
-            val image = this.image ?: return null
-            val buffer = image.planes[0].buffer
-            val pixelStride = image.planes[0].pixelStride
-            val rowStride = image.planes[0].rowStride
-            val rowPadding = rowStride - pixelStride * width
+            val image = imageProxy.image ?: return null
 
-            val bitmap = Bitmap.createBitmap(
-                width + rowPadding / pixelStride,
-                height,
-                Bitmap.Config.ARGB_8888
-            )
-            buffer.position(0) // Reset buffer position
-            bitmap.copyPixelsFromBuffer(buffer)
+            val yBuffer = image.planes[0].buffer
+            val uBuffer = image.planes[1].buffer
+            val vBuffer = image.planes[2].buffer
 
-            if (rowPadding == 0) {
-                bitmap
-            } else {
-                val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-                if (!bitmap.isRecycled) bitmap.recycle()
-                croppedBitmap
-            }
+            val ySize = yBuffer.remaining()
+            val uSize = uBuffer.remaining()
+            val vSize = vBuffer.remaining()
+
+            val nv21 = ByteArray(ySize + uSize + vSize)
+            yBuffer.get(nv21, 0, ySize)
+            vBuffer.get(nv21, ySize, vSize)
+            uBuffer.get(nv21, ySize + vSize, uSize)
+
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+            val outputStream = ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 100, outputStream)
+            val imageBytes = outputStream.toByteArray()
+
+            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
         } catch (e: Exception) {
-            Log.e(TAG, "Error converting ImageProxy to Bitmap", e)
+            e.printStackTrace()
             null
         }
     }
 
-    private fun analyzeImage(bitmap: Bitmap): Triple<String, FloatArray, Float> {
-        return try {
-            val inputBuffer = convertBitmapToByteBuffer(bitmap)
-            val outputBBox = Array(1) { FloatArray(4) }
-            val outputClass = Array(1) { FloatArray(classLabels.size) }
-
-            interpreter.runForMultipleInputsOutputs(
-                arrayOf(inputBuffer),
-                mapOf(0 to outputBBox, 1 to outputClass)
-            )
-
-            val maxIndex = outputClass[0].indices.maxByOrNull { outputClass[0][it] } ?: -1
-            val confidence = if (maxIndex != -1) outputClass[0][maxIndex] else 0f
-
-            val label = if (confidence > 0.5f && maxIndex in classLabels.indices) {
-                "${classLabels[maxIndex]} (${"%.1f".format(confidence * 100)}%)"
-            } else {
-                "Gesture tidak dikenali"
-            }
-
-            // Konversi normalized coordinates ke pixel coordinates
-            val pixelBBox = FloatArray(4).apply {
-                this[0] = outputBBox[0][0] * bitmap.width  // x_min
-                this[1] = outputBBox[0][1] * bitmap.height // y_min
-                this[2] = outputBBox[0][2] * bitmap.width  // x_max
-                this[3] = outputBBox[0][3] * bitmap.height // y_max
-            }
-
-            Log.d(TAG, "Detected: $label, BBox: [${pixelBBox[0]}, ${pixelBBox[1]}, ${pixelBBox[2]}, ${pixelBBox[3]}]")
-
-            Triple(label, pixelBBox, confidence)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during inference", e)
-            Triple("Error", FloatArray(4), 0f)
+    private fun rotateBitmap(bitmap: Bitmap, rotationDegrees: Float): Bitmap {
+        val matrix = Matrix().apply {
+            postRotate(rotationDegrees)
         }
-    }
-
-    private fun convertBitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
-        val inputSize = 224
-        val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
-        val byteBuffer = ByteBuffer.allocateDirect(4 * inputSize * inputSize * 3)
-        byteBuffer.order(ByteOrder.nativeOrder())
-
-        // Normalisasi ImageNet
-        val mean = floatArrayOf(123.68f, 116.78f, 103.94f)
-        val std = floatArrayOf(58.393f, 57.12f, 57.375f)
-
-        for (y in 0 until inputSize) {
-            for (x in 0 until inputSize) {
-                val pixel = resized.getPixel(x, y)
-                val r = (pixel shr 16) and 0xFF
-                val g = (pixel shr 8) and 0xFF
-                val b = pixel and 0xFF
-
-                byteBuffer.putFloat((r - mean[0]) / std[0])
-                byteBuffer.putFloat((g - mean[1]) / std[1])
-                byteBuffer.putFloat((b - mean[2]) / std[2])
-            }
-        }
-
-        if (!resized.isRecycled) resized.recycle()
-        return byteBuffer
-    }
-
-    // Fungsi transformasi yang diperbaiki
-    private fun transformBoundingBoxToView(bbox: FloatArray): RectF {
-        if (previewWidth == 0 || previewHeight == 0 || imageWidth == 0 || imageHeight == 0) {
-            return RectF(0f, 0f, 0f, 0f)
-        }
-
-        val viewWidth = previewWidth.toFloat()
-        val viewHeight = previewHeight.toFloat()
-        val imgWidth = imageWidth.toFloat()
-        val imgHeight = imageHeight.toFloat()
-
-        // Hitung scale factor
-        val scaleX = viewWidth / imgWidth
-        val scaleY = viewHeight / imgHeight
-
-        // Gunakan scale yang sesuai dengan PreviewView.ScaleType.FILL_CENTER
-        val scale = maxOf(scaleX, scaleY)
-
-        // Hitung offset untuk centering
-        val scaledImageWidth = imgWidth * scale
-        val scaledImageHeight = imgHeight * scale
-        val offsetX = (viewWidth - scaledImageWidth) / 2f
-        val offsetY = (viewHeight - scaledImageHeight) / 2f
-
-        // Transform coordinates
-        val transformedBBox = RectF(
-            bbox[0] * scale + offsetX,  // left
-            bbox[1] * scale + offsetY,  // top
-            bbox[2] * scale + offsetX,  // right
-            bbox[3] * scale + offsetY   // bottom
-        )
-
-        Log.d(TAG, "Transform - Image: ${imgWidth}x${imgHeight}, Preview: ${viewWidth}x${viewHeight}")
-        Log.d(TAG, "Scale: $scale, Offset: ($offsetX, $offsetY)")
-        Log.d(TAG, "Original BBox: [${bbox[0]}, ${bbox[1]}, ${bbox[2]}, ${bbox[3]}]")
-        Log.d(TAG, "Transformed BBox: $transformedBBox")
-
-        return transformedBBox
-    }
-
-    private fun loadModelFile(filename: String): ByteBuffer {
-        return assets.openFd(filename).use { fd ->
-            val inputStream = fd.createInputStream()
-            val byteBuffer = ByteBuffer.allocateDirect(fd.length.toInt())
-            val buffer = ByteArray(1024)
-            var bytesRead: Int
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                byteBuffer.put(buffer, 0, bytesRead)
-            }
-            byteBuffer.rewind()
-            byteBuffer
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Re-apply full screen saat resume
-        setupFullScreen()
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
-        if (::interpreter.isInitialized) interpreter.close()
+        if (::tflite.isInitialized) {
+            tflite.close()
+        }
     }
 
-    companion object {
-        private const val TAG = "KameraGestureActivity"
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+    override fun onResume() {
+        super.onResume()
+        setupFullscreenMode()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Clear detection when paused
+        runOnUiThread {
+            gestureText.text = "Mendeteksi gesture..."
+            overlayView.clearBox()
+        }
     }
 }

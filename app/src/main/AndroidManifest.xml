@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- 🔹 Pastikan aplikasi bisa menggunakan kamera -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
     <uses-feature android:name="android.hardware.camera.any" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -55,12 +58,10 @@
         <!-- 🔹 Activity untuk Kamera Gesture -->
         <activity
             android:name=".KameraGestureActivity"
-            android:exported="true"
+            android:theme="@style/FullscreenTheme"
             android:screenOrientation="portrait"
-            android:theme="@style/FullScreenTheme"
-            android:configChanges="orientation|keyboardHidden|screenSize"
-            android:windowSoftInputMode="stateHidden|adjustResize"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false" />
 
     </application>
 

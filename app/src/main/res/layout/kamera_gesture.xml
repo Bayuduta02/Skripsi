@@ -1,61 +1,73 @@
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@android:color/black"
+    android:fitsSystemWindows="false"
     tools:context=".KameraGestureActivity">
 
-    <com.example.skripsi.OverlayView
-        android:id="@+id/overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
+    <!-- Camera Preview - Full Screen -->
     <androidx.camera.view.PreviewView
         android:id="@+id/camera_preview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_constraintTop_toTopOf="parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:implementationMode="performance" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Overlay View for Bounding Box -->
+    <com.example.skripsi.OverlayView
+        android:id="@+id/overlay_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="@id/camera_preview"
+        app:layout_constraintEnd_toEndOf="@id/camera_preview"
+        app:layout_constraintStart_toStartOf="@id/camera_preview"
+        app:layout_constraintTop_toTopOf="@id/camera_preview" />
+
+    <!-- Close Button -->
+    <ImageButton
+        android:id="@+id/btn_close"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:background="@drawable/button_background_transparent"
+        android:src="@drawable/ic_close"
+        android:contentDescription="Tutup"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@android:color/white" />
+
+    <!-- Switch Camera Button -->
     <ImageButton
         android:id="@+id/btn_switch_camera"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_margin="16dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/switchcamera"
+        android:background="@drawable/button_background_transparent"
         android:src="@drawable/ic_switch_camera"
-        app:layout_constraintTop_toTopOf="parent"
+        android:contentDescription="Ganti Kamera"
         app:layout_constraintEnd_toEndOf="parent"
-        app:tint="@android:color/white"
-        android:elevation="8dp" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@android:color/white" />
 
+    <!-- Gesture Text -->
     <TextView
         android:id="@+id/gesture_text"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="32dp"
-        android:background="@drawable/gesture_text_background"
-        android:text="@string/detecting_gesture"
-        android:textSize="18sp"
-        android:textStyle="bold"
+        android:layout_margin="16dp"
+        android:background="@drawable/text_background"
+        android:padding="12dp"
+        android:text="Mendeteksi gesture..."
         android:textColor="@android:color/white"
-        android:gravity="center"
-        android:padding="16dp"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:elevation="8dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
