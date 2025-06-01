@@ -12,6 +12,7 @@ tensorflowLiteSelectTfOps = "2.16.1"
 viewpager2 = "1.1.0"
 cameraView = "1.4.2"
 cameraLifecycle = "1.4.2"
+exifinterface = "1.4.1"
 
 [libraries]
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version = "1.4.2" }
@@ -31,6 +32,7 @@ material = { group = "com.google.android.material", name = "material", version.r
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 tensorflow-lite-select-tf-ops = { module = "org.tensorflow:tensorflow-lite-select-tf-ops", version.ref = "tensorflowLiteSelectTfOps" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 
 [plugins]
