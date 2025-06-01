@@ -16,6 +16,7 @@ cameraLifecycle = "1.4.2"
 [libraries]
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version = "1.4.2" }
 androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "cameraView" }
+androidx-camera-extensions = { module = "androidx.camera:camera-extensions", version.ref = "cameraView" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-viewpager2 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -24,6 +25,7 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 litert = { module = "com.google.ai.edge.litert:litert", version.ref = "litert" }
 litert-gpu = { module = "com.google.ai.edge.litert:litert-gpu", version.ref = "litert" }
+litert-metadata = { module = "com.google.ai.edge.litert:litert-metadata", version.ref = "litert" }
 litert-support = { module = "com.google.ai.edge.litert:litert-support", version.ref = "litert" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }

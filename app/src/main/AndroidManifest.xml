@@ -16,11 +16,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- 🔹 Pastikan aplikasi bisa menggunakan kamera -->
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="true" />
-    <uses-feature android:name="android.hardware.camera.any" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.external" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -58,10 +57,25 @@
         <!-- 🔹 Activity untuk Kamera Gesture -->
         <activity
             android:name=".KameraGestureActivity"
-            android:theme="@style/FullscreenTheme"
+            android:exported="false"
             android:screenOrientation="portrait"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:exported="false" />
+            android:theme="@style/FullscreenTheme"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode"
+            android:windowSoftInputMode="adjustNothing"
+            android:launchMode="singleTop"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+
+            <!-- Untuk Android 10+ (API 29+) - Notch support -->
+            <meta-data
+                android:name="android.notch.config"
+                android:value="portrait|landscape" />
+
+            <!-- Untuk beberapa vendor seperti Huawei, Xiaomi -->
+            <meta-data
+                android:name="android.max_aspect"
+                android:value="2.4" />
+
+        </activity>
 
     </application>
 

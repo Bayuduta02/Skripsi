@@ -2,53 +2,44 @@ package com.example.skripsi
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.RectF
+import android.graphics.*
 import android.util.AttributeSet
 import android.view.View
 
-class OverlayView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : View(context, attrs, defStyleAttr) {
+class OverlayView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
 
     private var boundingBox: RectF? = null
-    private var labelText: String? = null
+    private var label: String? = null
 
     private val boxPaint = Paint().apply {
-        color = Color.GREEN
+        color = Color.RED
         style = Paint.Style.STROKE
-        strokeWidth = 8f
-        isAntiAlias = true
+        strokeWidth = 5f
     }
 
     private val textPaint = Paint().apply {
-        color = Color.GREEN
-        textSize = 48f
-        style = Paint.Style.FILL
+        color = Color.WHITE
+        textSize = 40f
+        textAlign = Paint.Align.LEFT
         isAntiAlias = true
-        isFakeBoldText = true
     }
 
     private val textBackgroundPaint = Paint().apply {
-        color = Color.argb(180, 0, 0, 0) // Semi-transparent black
+        color = Color.BLACK
         style = Paint.Style.FILL
-        isAntiAlias = true
+        alpha = 160
     }
 
-    fun setBoxAndLabel(box: RectF, label: String) {
+    fun setBoxAndLabel(box: RectF, text: String) {
         boundingBox = box
-        labelText = label
-        invalidate() // Trigger onDraw
+        label = text
+        postInvalidate()
     }
 
     fun clearBox() {
         boundingBox = null
-        labelText = null
-        invalidate()
+        label = null
+        postInvalidate()
     }
 
     @SuppressLint("DrawAllocation")
@@ -56,32 +47,27 @@ class OverlayView @JvmOverloads constructor(
         super.onDraw(canvas)
 
         boundingBox?.let { box ->
-            // Draw bounding box
             canvas.drawRect(box, boxPaint)
 
-            // Draw label with background
-            labelText?.let { label ->
-                val textBounds = android.graphics.Rect()
-                textPaint.getTextBounds(label, 0, label.length, textBounds)
+            label?.let { text ->
+                val textBounds = Rect()
+                textPaint.getTextBounds(text, 0, text.length, textBounds)
 
-                val textWidth = textBounds.width()
-                val textHeight = textBounds.height()
+                val textX = box.left + 10
+                val textY = box.top - textBounds.height() - 10
+                val adjustedTextY = if (textY < textBounds.height() + 10) box.top + textBounds.height() + 10 else textY
+                val adjustedTextX = if (textX < 0) 10f else textX
 
-                // Calculate text position (above the box)
-                val textX = box.left
-                val textY = box.top - 20f
-
-                // Draw text background
-                val bgRect = RectF(
-                    textX - 10f,
-                    textY - textHeight - 10f,
-                    textX + textWidth + 10f,
-                    textY + 10f
+                val padding = 8
+                canvas.drawRect(
+                    adjustedTextX - padding,
+                    adjustedTextY - textBounds.height() - padding,
+                    adjustedTextX + textBounds.width() + padding,
+                    adjustedTextY + padding,
+                    textBackgroundPaint
                 )
-                canvas.drawRoundRect(bgRect, 8f, 8f, textBackgroundPaint)
 
-                // Draw text
-                canvas.drawText(label, textX, textY, textPaint)
+                canvas.drawText(text, adjustedTextX, adjustedTextY, textPaint)
             }
         }
     }
