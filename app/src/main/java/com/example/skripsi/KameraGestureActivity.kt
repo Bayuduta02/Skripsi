@@ -1,7 +1,6 @@
 package com.example.skripsi
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
 import android.graphics.ImageFormat
 import android.hardware.camera2.*
@@ -9,9 +8,10 @@ import android.os.Bundle
 import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.skripsi.utils.AutoFitSurfaceView
@@ -20,14 +20,20 @@ import com.example.skripsi.utils.getPreviewOutputSize
 class KameraGestureActivity : AppCompatActivity() {
 
     private lateinit var surfaceView: AutoFitSurfaceView
+    private lateinit var gestureText: TextView
     private lateinit var cameraDevice: CameraDevice
     private lateinit var cameraCaptureSession: CameraCaptureSession
     private lateinit var previewSize: Size
     private lateinit var previewRequestBuilder: CaptureRequest.Builder
+    private lateinit var closeButton: ImageButton
+    private lateinit var switchCameraButton: ImageButton
 
     private val cameraManager: CameraManager by lazy {
         getSystemService(Context.CAMERA_SERVICE) as CameraManager
     }
+
+    private var currentCameraId: String = ""
+    private var isBackCamera: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,8 +43,18 @@ class KameraGestureActivity : AppCompatActivity() {
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
-        surfaceView = AutoFitSurfaceView(this)
-        setContentView(surfaceView)
+        setContentView(R.layout.camera_activity)
+        surfaceView = findViewById(R.id.camera_preview)
+        gestureText = findViewById(R.id.gesture_text)
+        closeButton = findViewById(R.id.btn_close)
+        switchCameraButton = findViewById(R.id.btn_switch_camera)
+
+        closeButton.setOnClickListener { finish() }
+        switchCameraButton.setOnClickListener {
+            isBackCamera = !isBackCamera
+            closeCamera()
+            openCamera()
+        }
 
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
@@ -52,15 +68,19 @@ class KameraGestureActivity : AppCompatActivity() {
 
     @SuppressLint("MissingPermission")
     private fun openCamera() {
-        val cameraId = cameraManager.cameraIdList.first()
-        val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+        currentCameraId = cameraManager.cameraIdList.first { id ->
+            val characteristics = cameraManager.getCameraCharacteristics(id)
+            val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
+            if (isBackCamera) facing == CameraCharacteristics.LENS_FACING_BACK else facing == CameraCharacteristics.LENS_FACING_FRONT
+        }
 
+        val characteristics = cameraManager.getCameraCharacteristics(currentCameraId)
         previewSize = getPreviewOutputSize(
             windowManager.defaultDisplay, characteristics, SurfaceHolder::class.java
         )
         surfaceView.setAspectRatio(previewSize.width, previewSize.height)
 
-        cameraManager.openCamera(cameraId, object : CameraDevice.StateCallback() {
+        cameraManager.openCamera(currentCameraId, object : CameraDevice.StateCallback() {
             override fun onOpened(device: CameraDevice) {
                 cameraDevice = device
                 createCameraPreviewSession()
@@ -75,6 +95,12 @@ class KameraGestureActivity : AppCompatActivity() {
                 Toast.makeText(this@KameraGestureActivity, "Camera error: $error", Toast.LENGTH_SHORT).show()
             }
         }, null)
+    }
+
+    private fun closeCamera() {
+        if (::cameraDevice.isInitialized) {
+            cameraDevice.close()
+        }
     }
 
     private fun createCameraPreviewSession() {
@@ -104,8 +130,6 @@ class KameraGestureActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::cameraDevice.isInitialized) {
-            cameraDevice.close()
-        }
+        closeCamera()
     }
 }

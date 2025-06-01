@@ -5,26 +5,23 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="false"
     android:background="@android:color/black"
-    tools:context=".KameraGestureActivity">
+    tools:context=".CameraActivity">
 
-    <!-- Camera Preview - Constrained to screen size -->
-    <androidx.camera.view.PreviewView
+    <!-- Camera Preview menggunakan AutoFitSurfaceView -->
+    <com.example.skripsi.utils.AutoFitSurfaceView
         android:id="@+id/camera_preview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:adjustViewBounds="true"
-        app:scaleType="fillCenter" />
+        android:layout_gravity="center" />
 
-    <!-- Overlay View for Bounding Box -->
+    <!-- Overlay View untuk Bounding Box -->
     <com.example.skripsi.OverlayView
         android:id="@+id/overlay_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- UI Controls Container -->
+    <!-- Tombol Atas: Exit & Switch Camera -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -32,7 +29,7 @@
         android:orientation="horizontal"
         android:padding="16dp">
 
-        <!-- Close Button -->
+        <!-- Tombol Close -->
         <ImageButton
             android:id="@+id/btn_close"
             android:layout_width="48dp"
@@ -48,7 +45,7 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- Switch Camera Button -->
+        <!-- Tombol Switch Kamera -->
         <ImageButton
             android:id="@+id/btn_switch_camera"
             android:layout_width="48dp"
@@ -58,10 +55,9 @@
             android:src="@drawable/ic_switch_camera"
             android:contentDescription="@string/switchcamera"
             app:tint="@android:color/white" />
-
     </LinearLayout>
 
-    <!-- Gesture Text -->
+    <!-- Teks Gesture -->
     <TextView
         android:id="@+id/gesture_text"
         android:layout_width="wrap_content"
@@ -76,5 +72,4 @@
         android:textSize="16sp"
         android:textStyle="bold"
         android:gravity="center" />
-
 </FrameLayout>
